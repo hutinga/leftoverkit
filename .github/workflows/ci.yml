@@ -17,6 +17,10 @@ jobs:
       - run: python -m pip install . pytest pytest-cov ruff
       - run: ruff check src tests scripts
       - run: pytest -q --cov=leftoverkit --cov-report=term-missing --cov-fail-under=80
-      - run: python scripts/discovery_fixture.py
+      - name: Verify recorded first scan
+        run: |
+          cp docs/first-scan.html "$RUNNER_TEMP/first-scan.html"
+          python scripts/discovery_fixture.py --replay "$RUNNER_TEMP/first-scan.html"
+          cmp docs/first-scan.html "$RUNNER_TEMP/first-scan.html"
       - run: python scripts/demo.py
       - run: python scripts/showcase_fixture.py

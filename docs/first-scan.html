@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="See what a read-only LeftoverKit scan finds in a checkout with no registrations.">
+<title>First scan · LeftoverKit</title>
+<style>
+:root{color-scheme:dark;--paper:#101313;--panel:#1a201e;--edge:#323e38;--ink:#f0f4ea;--sub:#b5c0b8;--green:#b9fa8b;--gold:#ffcb83;--mono:"SFMono-Regular",Consolas,monospace;--sans:system-ui,-apple-system,"PingFang SC",sans-serif}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.45 var(--sans)}
+button{font:inherit;cursor:pointer}button:focus-visible{outline:2px solid var(--green);outline-offset:4px}
+button:disabled{cursor:default}
+main{width:min(1510px,calc(100% - 96px));margin:auto}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:69px;border-bottom:1px solid var(--edge)}
+.brand{font-weight:800;font-size:21px;letter-spacing:-.045em;display:flex;align-items:center;gap:11px}
+.mark{width:19px;height:19px;display:inline-grid;grid-template-columns:repeat(2,1fr);gap:3px;transform:rotate(-8deg)}
+.mark b{background:var(--green);border-radius:2px}.mark b:nth-child(2){opacity:.54}.mark b:nth-child(4){opacity:.75}
+header button{color:var(--ink);background:transparent;border:1px solid var(--edge);border-radius:7px;padding:9px 13px;font:700 12px var(--mono)}
+header button:hover{border-color:var(--green)}
+section.stage{display:grid;grid-template-columns:minmax(320px, .93fr) minmax(0,1.3fr);align-items:center;gap:clamp(24px,4.1vw,66px);padding:clamp(28px,4.9vw,76px) 0 34px}
+.signal{display:flex;align-items:center;gap:9px;color:var(--green);font:720 12px var(--mono);letter-spacing:.09em;text-transform:uppercase}
+.signal i{display:inline-block;width:8px;height:8px;background:var(--green);border-radius:50%;box-shadow:0 0 0 4px #2a3e28}
+h1,h2,p{margin:0}
+h1{font-size:clamp(46px,5.6vw,90px);font-weight:850;letter-spacing:-.075em;line-height:.99;margin:21px 0 17px}
+h1 span{color:var(--green)}
+html[lang="zh-CN"] h1{font-size:clamp(42px,4.85vw,75px);letter-spacing:-.07em;line-height:1.13}
+.description{font-size:clamp(15px,1.43vw,20px);max-width:39ch;color:var(--sub)}
+.actions{margin-top:23px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.actions button{border:0;border-radius:7px;background:var(--green);color:#17201a;font-weight:790;min-height:48px;padding:11px 17px;display:inline-flex;align-items:center;gap:12px}
+.actions button:hover:not(:disabled){background:#d2ffab}.actions button:disabled{opacity:.63}
+.actions button span{color:inherit;font-size:19px}
+.outcome{min-width:0;background:var(--panel);border:1px solid var(--edge);border-radius:14px;position:relative;overflow:hidden}
+.bar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:14px 17px;border-bottom:1px solid var(--edge);background:#15201b}
+.bar h2{font:720 13px var(--mono);color:var(--green)}
+.bar span{color:var(--sub);font:600 10px var(--mono);text-align:end;letter-spacing:.04em}
+.summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));background:#171d1a;border-bottom:1px solid var(--edge)}
+.measure{padding:13px 16px 11px;min-width:0;border-inline-end:1px solid var(--edge)}
+.measure:last-child{border:0}
+.measure strong{font:760 clamp(30px,4.1vw,59px)/1 var(--mono);letter-spacing:-.09em;color:var(--green);display:block;font-variant-numeric:tabular-nums}
+.measure:nth-child(2) strong{color:var(--gold)}
+.measure:nth-child(3) strong{color:var(--ink)}
+.measure span{display:block;color:var(--sub);font-size:11px;font-weight:650;margin-top:5px}
+.list{list-style:none;margin:0;padding:0 16px;min-height:301px}
+.row{display:grid;grid-template-columns:67px minmax(0,1fr);gap:11px;padding:9px 0;border-bottom:1px solid var(--edge);align-items:start;min-height:50px}
+.row:last-child{border:0}
+.row code{font:650 13px/1.18 var(--mono);color:var(--ink);overflow-wrap:anywhere}
+.row small{display:block;font-size:11px;color:var(--sub);margin-top:1px}
+.badge{border:1px solid #5b4c3a;color:var(--gold);border-radius:4px;padding:3px 5px;text-align:center;font:680 10px var(--mono)}
+.row[data-status="ready"] .badge{color:var(--green);border-color:#417b47;background:#253d29}
+.outcome[data-phase="idle"] .badge,.outcome[data-phase="scanning"] .row:not(.revealed) .badge{color:var(--sub);border-color:var(--edge);background:transparent}
+.outcome[data-phase="idle"] .row small,.outcome[data-phase="scanning"] .row:not(.revealed) small{visibility:hidden}
+.outcome[data-phase="scanning"]::after{content:"";position:absolute;left:0;right:0;top:91px;height:3px;background:var(--green);box-shadow:0 0 25px 5px #b9fa8b88;animation:sweep 950ms ease-out forwards;pointer-events:none}
+@keyframes sweep{to{transform:translateY(320px);opacity:0}}
+footer{display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap;align-items:center;border-top:1px solid var(--edge);padding:15px 0 23px;color:var(--sub);font-size:12px}
+footer b{color:var(--ink)}
+@media (max-width:880px){main{width:calc(100% - 54px)}section.stage{gap:24px;grid-template-columns:minmax(260px,.85fr) minmax(0,1.15fr)}.row{grid-template-columns:58px minmax(0,1fr)}}
+@media (max-width:650px){main{width:calc(100% - 32px)}header{min-height:57px}section.stage{grid-template-columns:1fr;padding:34px 0 23px;gap:24px}.bar,.measure{padding-left:12px;padding-right:12px}.list{padding-inline:12px}h1{margin:17px 0 12px}.actions{margin-top:16px}.description{font-size:15px}}
+@media (prefers-reduced-motion:reduce){.outcome[data-phase="scanning"]::after{animation:none;opacity:0}}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <strong class="brand"><span class="mark" aria-hidden="true"><b></b><b></b><b></b><b></b></span>LeftoverKit</strong>
+    <button type="button" id="language" aria-label="切换成中文">中文</button>
+  </header>
+  <section class="stage" aria-labelledby="headline">
+    <div>
+      <p class="signal"><i aria-hidden="true"></i> <span data-copy="signal">Read-only first scan</span></p>
+      <h1 id="headline">AI is done.<br><span>What’s left?</span></h1>
+      <p class="description" data-copy="description">Open an old checkout. See the files worth a second look, with the evidence beside each one.</p>
+      <div class="actions"><button id="action" type="button" disabled><b data-action="caption">Run demo scan</b><span aria-hidden="true">↘</span></button></div>
+    </div>
+    <div class="outcome" data-phase="idle" aria-labelledby="command">
+      <div class="bar"><h2 id="command">$ leftoverkit scan</h2><span id="phase" role="status" aria-live="polite"></span></div>
+      <div class="summary" id="summary">
+        <div class="measure"><strong id="ready">—</strong><span data-copy="readyLabel">Eligible</span></div>
+        <div class="measure"><strong id="review">—</strong><span data-copy="reviewLabel">Review only</span></div>
+        <div class="measure"><strong id="moved">—</strong><span data-copy="movedLabel">Files moved</span></div>
+      </div>
+      <ul class="list" id="findings" aria-label="First scan findings"></ul>
+    </div>
+  </section>
+  <footer><b data-copy="proof">Verified CLI run · Synthetic checkout · Zero registrations</b><span data-copy="note">Replay only. Your files stay untouched.</span></footer>
+</main>
+<noscript>Enable JavaScript to run the first-scan replay. / 启用 JavaScript 后可观看扫描回放。</noscript>
+<script type="application/json" id="evidence">
+{
+  "synthetic": true,
+  "registrations": 0,
+  "files_moved": 0,
+  "unchanged_examples": [
+    "app.py",
+    "stable.log",
+    ".env"
+  ],
+  "findings": [
+    {
+      "path": "frontend/generated/playwright-report",
+      "status": "ready",
+      "kind": "playwright",
+      "bytes": 38,
+      "evidence": "Git-ignored output with a Playwright marker"
+    },
+    {
+      "path": ".worktree/old-tooling",
+      "status": "review",
+      "kind": "worktree",
+      "bytes": 104,
+      "evidence": "clean linked checkout; HEAD in a remote-tracking integration branch",
+      "reason": "eligible for an explicit --repo cleanup from the primary checkout"
+    },
+    {
+      "path": "frontend/generated/stale-build.log",
+      "status": "review",
+      "kind": "legacy",
+      "bytes": 21,
+      "evidence": "untracked artifact extension or scratch location",
+      "reason": "unknown owner or purpose; advisory only"
+    },
+    {
+      "path": "tmp/draft.patch",
+      "status": "review",
+      "kind": "legacy",
+      "bytes": 26,
+      "evidence": "untracked artifact extension or scratch location",
+      "reason": "unknown owner or purpose; advisory only"
+    },
+    {
+      "path": "tmp/export.csv",
+      "status": "review",
+      "kind": "legacy",
+      "bytes": 14,
+      "evidence": "untracked artifact extension or scratch location",
+      "reason": "unknown owner or purpose; advisory only"
+    },
+    {
+      "path": "tmp/repro-focus.py",
+      "status": "review",
+      "kind": "legacy",
+      "bytes": 30,
+      "evidence": "untracked one-off script name or scratch location",
+      "reason": "unknown owner or purpose; advisory only"
+    }
+  ]
+}
+</script>
+<script>
+"use strict";
+const byId = (id) => document.getElementById(id);
+const evidence = JSON.parse(byId("evidence").textContent);
+const content = {
+  en: {
+    title: ["AI is done.", "What’s left?"],
+    signal: "Read-only first scan",
+    description: "Open an old checkout. See the files worth a second look, with the evidence beside each one.",
+    readyLabel: "Eligible", reviewLabel: "Review only", movedLabel: "Files moved",
+    proof: "Verified CLI run · Synthetic checkout · Zero registrations",
+    note: "Replay only. Your files stay untouched.",
+    idle: "BEFORE SCAN", scanning: "READING…", complete: "SCAN COMPLETE",
+    start: "Run demo scan", again: "Replay scan", running: "Scanning…", unknown: "UNSCANNED",
+    absent: "Demo evidence unavailable", ready: "READY", review: "REVIEW",
+    hints: {
+      playwright: "Playwright marker inside an ignored directory",
+      worktree: "Merged worktree · needs explicit repository scope",
+    },
+    artifact: "Untracked artifact · ownership unknown",
+    script: "One-off script name · ownership unknown",
+    announce: (ready, review) => ready + " eligible, " + review + " for review. Zero files moved.",
+  },
+  zh: {
+    title: ["AI 干完了。", "仓库里还剩什么？"],
+    signal: "第一次扫描 · 只读",
+    description: "打开一个用过的 Git 仓库，看看哪些旧文件值得再看一眼，依据就在旁边。",
+    readyLabel: "符合清理条件", reviewLabel: "仅供核查", movedLabel: "文件被移动",
+    proof: "CLI 实跑 · 合成仓库 · 零预先登记",
+    note: "页面只回放结果，你的文件原样保留。",
+    idle: "扫描前", scanning: "正在读取…", complete: "扫描完成",
+    start: "扫一扫演示仓库", again: "重播扫描", running: "扫描中…", unknown: "待扫描",
+    absent: "演示数据未加载", ready: "符合条件", review: "仅供核查",
+    hints: {
+      playwright: "被忽略的目录里找到了 Playwright 标记",
+      worktree: "已合并的工作树 · 需要显式扩大清理范围",
+    },
+    artifact: "未跟踪的过程文件 · 归属未知",
+    script: "像一次性脚本 · 归属未知",
+    announce: (ready, review) => ready + " 项符合条件，" + review + " 项仅供核查。移动文件 0 个。",
+  },
+};
+let lang = location.hash === "#zh" ? "zh" : "en";
+let mode = "idle";
+let revealed = 0;
+const panel = document.querySelector(".outcome");
+const button = byId("action");
+const results = evidence.findings ?? [];
+const valid = evidence.synthetic === true && evidence.registrations === 0 && evidence.files_moved === 0 && results.length > 0;
+const list = byId("findings");
+const rows = results.map((item) => {
+  const row = document.createElement("li");
+  row.className = "row";
+  row.dataset.status = item.status;
+  const badge = document.createElement("span");
+  badge.className = "badge";
+  const body = document.createElement("span");
+  const path = document.createElement("code");
+  const explanation = document.createElement("small");
+  path.textContent = item.path;
+  body.append(path, explanation);
+  row.append(badge, body);
+  list.append(row);
+  return {item, row, badge, explanation};
+});
+
+function draw() {
+  const t = content[lang];
+  document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
+  const accent = document.createElement("span");
+  accent.textContent = t.title[1];
+  byId("headline").replaceChildren(t.title[0], document.createElement("br"), accent);
+  document.querySelectorAll("[data-copy]").forEach((element) => {element.textContent = t[element.dataset.copy];});
+  byId("language").textContent = lang === "en" ? "中文" : "EN";
+  byId("language").setAttribute("aria-label", lang === "en" ? "切换成中文" : "Switch to English");
+  list.setAttribute("aria-label", lang === "en" ? "First scan findings" : "首次扫描结果");
+  panel.dataset.phase = mode;
+  button.disabled = !valid || mode === "scanning";
+  button.querySelector("b").textContent = mode === "done" ? t.again : (mode === "scanning" ? t.running : t.start);
+  const counted = results.slice(0, revealed);
+  const ready = counted.filter((item) => item.status === "ready").length;
+  const review = counted.filter((item) => item.status === "review").length;
+  byId("ready").textContent = mode === "idle" ? "—" : ready;
+  byId("review").textContent = mode === "idle" ? "—" : review;
+  byId("moved").textContent = mode === "idle" ? "—" : evidence.files_moved;
+  const status = byId("phase");
+  status.textContent = !valid ? t.absent : ({idle:t.idle, scanning:t.scanning, done:t.complete})[mode];
+  status.setAttribute("aria-label", mode === "done" ? t.announce(ready, review) : status.textContent);
+  rows.forEach(({item, row, badge, explanation}, index) => {
+    const show = index < revealed;
+    row.classList.toggle("revealed", show);
+    badge.textContent = show ? t[item.status] : t.unknown;
+    const reason = t.hints[item.kind] ?? (item.evidence?.includes("script") ? t.script : t.artifact);
+    explanation.textContent = show ? reason : "";
+  });
+}
+
+button.addEventListener("click", () => {
+  if (!valid || mode === "scanning") return;
+  mode = "scanning";
+  revealed = 0;
+  draw();
+  const finish = () => {
+    revealed = rows.length;
+    mode = "done";
+    draw();
+    button.focus({preventScroll:true});
+  };
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) {finish(); return;}
+  const play = setInterval(() => {
+    revealed++;
+    if (revealed >= rows.length) {clearInterval(play); finish();}
+    else draw();
+  }, 155);
+});
+byId("language").addEventListener("click", () => {
+  lang = lang === "en" ? "zh" : "en";
+  history.replaceState(null, "", "#" + lang);
+  draw();
+});
+draw();
+</script>
+</body>
+</html>

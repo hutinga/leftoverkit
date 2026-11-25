@@ -16,6 +16,9 @@ from demo import DAY, old_worktree, run
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cli", default=shutil.which("leftoverkit"))
+    parser.add_argument(
+        "--replay", type=Path, help="Update the verified data in a first-scan replay page"
+    )
     args = parser.parse_args()
     if not args.cli:
         parser.error("Install LeftoverKit or pass --cli.")
@@ -67,6 +70,41 @@ def main() -> None:
         assert ".env" not in by_name and "stable.log" not in by_name
         assert not (root / ".git/leftoverkit").exists()
         assert all((root / path).read_text() == content for path, content in leftovers.items())
+        unchanged = {
+            "app.py": baseline["app.py"],
+            "stable.log": baseline["stable.log"],
+            ".env": "EXAMPLE=synthetic-value\n",
+        }
+        assert all((root / path).read_text() == content for path, content in unchanged.items())
+        assert (linked / "node_modules/example.js").is_file() and not result["warnings"]
+        if args.replay:
+            data = {
+                "synthetic": True,
+                "registrations": 0,
+                "files_moved": 0,
+                "unchanged_examples": list(unchanged),
+                "findings": [
+                    {
+                        "path": name,
+                        **{
+                            key: row[key]
+                            for key in ("status", "kind", "bytes", "evidence", "reason")
+                            if key in row
+                        },
+                    }
+                    for name, row in sorted(
+                        by_name.items(), key=lambda entry: (entry[1]["status"] != "ready", entry[0])
+                    )
+                ],
+            }
+            prefix, marker, rest = args.replay.read_text().partition(
+                '<script type="application/json" id="evidence">'
+            )
+            _, closing, suffix = rest.partition("</script>")
+            if not marker or not closing:
+                raise SystemExit("Replay page is missing its evidence slot.")
+            payload = json.dumps(data, ensure_ascii=True, indent=2).replace("<", r"\u003c")
+            args.replay.write_text(prefix + marker + "\n" + payload + "\n" + closing + suffix)
         for name, item in sorted(by_name.items()):
             print(
                 f"{item['status']:<7} {item.get('bytes', 0):>5,} B  {name}  {item.get('evidence', '')}"

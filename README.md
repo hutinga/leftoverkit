@@ -1,8 +1,12 @@
 # LeftoverKit
 
-**See what an existing Git checkout has accumulated. Start with a read-only scan.**
+**AI is done. What’s left in your repo?**
 
-LeftoverKit finds stale report directories, old logs, patches, one-off scripts in temporary locations, and linked worktrees. It prints the path, the evidence for the match and measured logical bytes. A filename can suggest what a file is. It cannot prove an AI created it or that it is safe to remove.
+See the old reports, logs, patches and worktrees worth a second look. Start with a read-only scan.
+
+[![A real first scan of a synthetic Git checkout. One item eligible, five for review and zero files moved.](docs/media/first-scan.gif)](docs/DEMO.md#watch-the-first-scan)
+
+[Run it on your repo ↓](#scan-your-existing-checkout) · [Replay the scan](docs/DEMO.md#watch-the-first-scan) · [中文](docs/README.zh-CN.md)
 
 ## Scan your existing checkout
 
@@ -12,7 +16,7 @@ Requires macOS or Linux, Python 3.11+, Git and `uv`. From the checkout you want 
 uvx --from 'git+PASTE_THE_HTTPS_CLONE_URL_HERE' leftoverkit scan
 ```
 
-The scan writes no LeftoverKit state. It also works without `lsof` and reports that open files could not be verified. Add `--json` for the full machine-readable output.
+The scan shows what it found, the evidence and the measured size. It writes no LeftoverKit state. It also works without `lsof` and reports that open files could not be verified. Add `--json` for the full machine-readable output.
 
 | Result | Meaning |
 | --- | --- |
