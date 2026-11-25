@@ -4,9 +4,9 @@
 
 一条命令，只读扫描 Git 仓库里的旧工作树、日志、临时脚本、补丁和测试报告。每条发现都带着识别依据和文件体积。
 
-**[在线试玩](../../../deployments/github-pages) · [扫我的仓库](#先试只读扫描) · [English](../README.md)**
+**[在线试玩](../../../deployments/activity_log?environments_filter=github-pages) · [扫我的仓库](#先试只读扫描) · [English](../README.md)**
 
-[![首次扫描在被 Git 忽略的父目录里发现 Playwright 报告，并高亮展示识别依据](media/first-scan-zh.gif)](../../../deployments/github-pages)
+[![首次扫描在被 Git 忽略的父目录里发现 Playwright 报告，并高亮展示识别依据](media/first-scan-zh.gif)](../../../deployments/activity_log?environments_filter=github-pages)
 
 这份 Playwright 报告藏在 Git 忽略的目录里。LeftoverKit 第一次扫，就从报告内容里找到了识别标记。演示用的是合成仓库，事先登记的文件为零。
 
