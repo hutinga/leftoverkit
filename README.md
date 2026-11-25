@@ -1,48 +1,58 @@
 # LeftoverKit
 
-**Your AI finished the job. Now let it clean up.**
+**See what an existing Git checkout has accumulated. Start with a read-only scan.**
 
-**991 temporary files → 0 in the workspace → 991 restored.**
-One actual CLI run in a synthetic Git project. The source, final evidence and open log stay put.
+LeftoverKit finds stale report directories, old logs, patches, one-off scripts in temporary locations, and linked worktrees. It prints the path, the evidence for the match and measured logical bytes. A filename can suggest what a file is. It cannot prove an AI created it or that it is safe to remove.
 
-[![991 temporary files move, then come back](docs/media/cleanup.gif)](docs/DEMO.md)
+## Scan your existing checkout
 
-[Try the interactive replay](docs/DEMO.md) · [What agents leave behind](docs/SCENARIOS.md) · [中文](docs/README.zh-CN.md)
-
-Tell Codex or Claude Code **“Clean up the temporary files you made.”** Or run **`leftoverkit clean`**. It moves eligible leftovers to quarantine and prints an undo command.
-
-## Install
-
-Requires Python 3.11+, Git and `lsof`. Targets macOS and Linux.
-
-Clone or download the repository and run the following command from its root.
+Requires macOS or Linux, Python 3.11+, Git and `uv`. From the checkout you want to inspect, use the HTTPS clone URL from this repository's **Code** menu:
 
 ```sh
-uv tool install . && leftoverkit install
+uvx --from 'git+PASTE_THE_HTTPS_CLONE_URL_HERE' leftoverkit scan
 ```
 
-`leftoverkit install` adds the skill to Codex and Claude Code. Reopen the agent if the newly installed skill is missing. For CLI-only use, run `uv tool install .`. You can also install a built wheel with `pipx install /path/to/the.whl`.
+The scan writes no LeftoverKit state. It also works without `lsof` and reports that open files could not be verified. Add `--json` for the full machine-readable output.
 
-## Use
-
-```sh
-leftoverkit clean         # cleans eligible items and prints an undo ID
-leftoverkit undo          # restores the latest batch, preserving any new files
-leftoverkit scan          # preview without making changes
-```
-
-| What it finds | Default action |
+| Result | Meaning |
 | --- | --- |
-| Agent scratch batches and explicitly registered files | Finished batches are ready right away. Abandoned scratch batches are eligible after 48 hours. |
-| Git-ignored Playwright reports, including nested outputs with a valid runner marker | Quarantine after seven days without changes. |
-| Clean linked worktrees under conventional project folders | Quarantine after 72 hours if the commit is already on a local remote-tracking integration branch. |
-| Unknown `tmp/` or `scratch/`, protected paths, active worktrees and dirty worktrees | Show the reason and leave them in place. |
+| **Ready** | A known generated report or a registered artifact in the selected scope qualified for cleanup. |
+| **Review** | Evidence suggests a leftover, or broader scope is needed. The default cleanup leaves it in place. |
+| **Kept** | A hold, Git state, open process, age threshold or another protection blocked cleanup. |
 
-An agent allocates a place with `leftoverkit scratch --json`, then runs `leftoverkit finish ID` when its tests and subprocesses are done. It can register disposable untracked project files it created with `leftoverkit register PATH ...`, or exact paths in system temp with `leftoverkit register --temp PATH ...`. If a scratch batch is worth keeping, run `leftoverkit keep PATH`. A hold on a file inside a batch keeps the whole batch.
+To reproduce discovery in a disposable checkout with **no scratch allocations or registered files**, see the [first-scan case](docs/DEMO.md).
 
-Files go into private local storage under the repository’s Git metadata. Quarantined worktrees stay registered with Git until restored or purged. Their branches remain checked out during that time. `leftoverkit purge` frees space from batches at least 14 days old. `leftoverkit -C /path/to/repo clean` is suitable for a scheduler. The tool operates locally and sends no data.
+## Clean up when you choose
 
-## Development
+With LeftoverKit [installed from source](#install-and-develop), `leftoverkit clean` applies the ready entries in the current checkout's unscoped workspace. To clear a single agent task, use its ID for every operation:
+
+```sh
+leftoverkit start --json
+leftoverkit scratch --task TASK_ID --json
+# Put throwaway files in the returned directory, then mark it finished.
+leftoverkit finish --task TASK_ID SCRATCH_ID
+leftoverkit scan --task TASK_ID
+leftoverkit clean --task TASK_ID
+leftoverkit batches --task TASK_ID
+leftoverkit undo --task TASK_ID
+```
+
+A task from another checkout, or another task in the same checkout, is outside that scope. Use `--repo` explicitly from the primary checkout to include eligible linked worktrees and shared scratch allocations. [Scope and recovery rules](docs/DESIGN.md)
+
+## Install and develop
+
+From a local copy of this project's source:
+
+```sh
+uv tool install .
+leftoverkit install  # optional Codex and Claude Code skill
+```
+
+The skill allocates a task and carries its ID. It can register exact artifact paths it created. Ordinary untracked application source is rejected by `register`. For one-off code, use allocated scratch. The runtime integrations still rely on the agent to follow these instructions.
+
+Quarantine moves files out of the workspace while keeping a copy on disk. Run `leftoverkit batches` to inspect recoverable items, or `leftoverkit config --init` to set retention and scan limits. `purge` is the separate, permanent space-reclaim operation. Worktree branches stay checked out until the quarantined worktree is restored or purged.
+
+[中文说明](docs/README.zh-CN.md) · [Discovery and recovery cases](docs/DEMO.md) · [Verification](docs/VERIFICATION.md)
 
 ```sh
 uv run --with pytest pytest -q

@@ -66,7 +66,7 @@ def prepare(repo: Path, external: Path, cli: str) -> tuple[dict[str, list[Path]]
 
     log = external / "browser-debug.log"
     log.write_text("Synthetic detached browser log\n")
-    repro = repo / "probe-once.py"
+    repro = repo / "probe-once.log"
     repro.write_text('print("synthetic repro")\n')
     run(cli, "register", "--temp", str(log), cwd=repo)
     run(cli, "register", repro.name, cwd=repo)
@@ -120,7 +120,7 @@ def exercise(repo: Path, external: Path, cli: str) -> dict[str, object]:
     ) as worker:
         try:
             assert worker.stdout and worker.stdout.readline().strip() == "ready"
-            clean = json.loads(run(cli, "clean", "--json", cwd=repo))
+            clean = json.loads(run(cli, "clean", "--repo", "--json", cwd=repo))
             assert len(moved) == 991
             assert clean["moved"] == 5, clean
             assert not any(path.exists() for path in [*moved, worktree])
@@ -129,7 +129,7 @@ def exercise(repo: Path, external: Path, cli: str) -> dict[str, object]:
             assert "remote-tracking" in reasons[unmerged.name]
             assert sha256(protected) == keep_hash and unmerged.is_dir()
 
-            undo = json.loads(run(cli, "undo", clean["batch"], "--json", cwd=repo))
+            undo = json.loads(run(cli, "undo", "--repo", clean["batch"], "--json", cwd=repo))
             assert len(undo["items"]) == 5 and all(
                 item["status"] == "restored" for item in undo["items"]
             )
@@ -141,6 +141,8 @@ def exercise(repo: Path, external: Path, cli: str) -> dict[str, object]:
     return {
         "synthetic": True,
         "files": GROUPS,
+        "moved_objects": clean["moved"],
+        "restored_objects": len(undo["items"]),
         "moved_files": len(moved),
         "restored_files": len(moved),
         "protected": list(keep),

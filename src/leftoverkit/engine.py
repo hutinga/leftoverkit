@@ -15,6 +15,7 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
+from .inventory import ATTACHMENTS, REPORTS, SCRATCH_NAMES, dependency_cache, discover, estimated_bytes
 from .repo import (
     INTEGRATION,
     Repo,
@@ -30,13 +31,13 @@ from .repo import (
     require_private,
     sensitive_name,
     signature,
+    sync_directory,
     system_temp_roots,
     write_json,
 )
+from .settings import Settings
 
 DAY = 86400
-HOLD_DAYS = 14
-REPORTS = {"playwright-report": "index.html", "test-results": ".last-run.json"}
 WORKTREE_DIRS = (".worktree", ".worktrees", ".claude/worktrees")
 ID = re.compile(r"^[a-f0-9]{16}$")
 PROTECTED = {
@@ -60,7 +61,12 @@ PROTECTED = {
 
 
 def protected(path: Path) -> bool:
-    return any(part.casefold() in PROTECTED or sensitive_name(part) for part in path.parts)
+    return any(
+        part.casefold() in PROTECTED
+        or sensitive_name(part)
+        or part.startswith(".leftoverkit-quarantine-")
+        for part in path.parts
+    )
 
 
 def new_id() -> str:
@@ -72,10 +78,33 @@ def in_use(path: Path, opened: set[Path]) -> bool:
 
 
 class Engine:
-    def __init__(self, repo: Repo):
+    def __init__(self, repo: Repo, *, task: str | None = None, whole_repo: bool = False):
         self.repo = repo
         self.root = repo.root
         self.state = repo.state
+        self.settings = Settings.load(self.state)
+        self.task = task
+        self.whole_repo = whole_repo
+        self.warnings: list[str] = []
+        if whole_repo and (task is not None or self.root != self.repo.primary):
+            raise SafetyError("Use --repo from the primary checkout without a task ID.")
+        if task and self.registry().get("tasks", {}).get(task, {}).get("checkout") != str(self.root):
+            raise SafetyError("Unknown task ID for this checkout.")
+
+    def start(self) -> dict[str, str]:
+        with self.locked():
+            registry = self.registry()
+            task = new_id()
+            registry.setdefault("tasks", {})[task] = {"checkout": str(self.root), "created": time.time()}
+            self.save_registry(registry)
+            return {"task": task}
+
+    def in_scope(self, row: dict[str, Any]) -> bool:
+        if self.task:
+            return row.get("task") == self.task and row.get("checkout") == str(self.root)
+        if self.whole_repo:
+            return row.get("kind") == "scratch" or row.get("checkout") == str(self.root)
+        return row.get("task") is None and row.get("checkout") == str(self.root)
 
     @contextlib.contextmanager
     def locked(self) -> Iterator[None]:
@@ -101,6 +130,8 @@ class Engine:
                 "path": str(directory),
                 "kind": "scratch",
                 "checkout": str(self.root),
+                "task": self.task,
+                "created": time.time(),
                 "finished": False,
             }
             self.save_registry(registry)
@@ -116,7 +147,9 @@ class Engine:
             kind = "registered-temp" if temporary else "registered"
             paths = dict.fromkeys(self.repo.input_path(value) for value in values)
             for path in paths:
-                allowed = self.eligible_temp_path(path) if temporary else self.eligible_file_path(path)
+                allowed = (
+                    self.eligible_temp_path(path) if temporary else self.eligible_registered_path(path)
+                )
                 if not allowed or not stat.S_ISREG(path.lstat().st_mode):
                     scope = (
                         "operating-system temp directories outside Git checkouts"
@@ -124,14 +157,33 @@ class Engine:
                         else "this checkout"
                     )
                     raise SafetyError(
-                        f"Only untracked, unprotected regular files in {scope} may be registered."
+                        f"Only untracked, unprotected regular artifacts in {scope} may be registered. "
+                        "Use managed scratch for code or ambiguous files."
                     )
                 identity, _, _, _ = inspect(path)
+                known = next(
+                    (
+                        key
+                        for key, row in records["managed"].items()
+                        if row["path"] == str(path) and row.get("identity") == list(identity[:2])
+                    ),
+                    None,
+                )
+                if known:
+                    row = records["managed"][known]
+                    if row.get("task") != self.task or row.get("checkout") != str(self.root):
+                        raise SafetyError(
+                            "This file is already registered to a different task or checkout."
+                        )
+                    registered.append({"id": known, "path": str(path)})
+                    continue
                 key = new_id()
                 records["managed"][key] = {
                     "path": str(path),
                     "kind": kind,
                     "checkout": str(self.root),
+                    "task": self.task,
+                    "created": time.time(),
                     "finished": True,
                     "identity": list(identity[:2]),
                 }
@@ -165,18 +217,47 @@ class Engine:
             )
         )
 
+    def eligible_registered_path(self, path: Path) -> bool:
+        if not self.eligible_file_path(path):
+            return False
+        relative = path.relative_to(self.root)
+        suffix = path.suffix.casefold()
+        if suffix in {
+            ".log",
+            ".trace",
+            ".har",
+            ".tmp",
+            ".patch",
+            ".diff",
+            ".png",
+            ".jpg",
+            ".jpeg",
+            ".webp",
+            ".webm",
+            ".mp4",
+        }:
+            return True
+        return suffix in ATTACHMENTS and bool(
+            {part.casefold() for part in relative.parts[:-1]} & SCRATCH_NAMES
+        )
+
     def finish(self, key: str) -> None:
         with self.locked():
             registry = self.registry()
             row = registry["managed"].get(key)
-            if row is None or row["kind"] != "scratch":
-                raise SafetyError("Unknown scratch ID.")
+            if (
+                row is None
+                or row["kind"] != "scratch"
+                or row.get("checkout") != str(self.root)
+                or row.get("task") != self.task
+            ):
+                raise SafetyError("Unknown scratch ID in this scope.")
             if not Path(row["path"]).is_dir():
                 raise SafetyError("The scratch batch is no longer in its original location.")
             row["finished"] = True
             self.save_registry(registry)
 
-    def keep(self, value: str) -> str:
+    def keep(self, value: str, *, release: bool = False) -> str:
         path = self.repo.input_path(value)
         with self.locked():
             registry = self.registry()
@@ -184,11 +265,16 @@ class Engine:
             if inside(path, scratch) and path != scratch:
                 path = scratch / path.relative_to(scratch).parts[0]
             registered = any(row["path"] == str(path) for row in registry["managed"].values())
-            if not path.exists() or not (inside(path, self.root) or inside(path, scratch) or registered):
+            if (not path.exists() and not (release and str(path) in registry["held"])) or not (
+                inside(path, self.root) or inside(path, scratch) or registered
+            ):
                 raise SafetyError(
                     "Keep expects an existing project path, scratch batch, or registered file."
                 )
-            if str(path) not in registry["held"]:
+            if release and str(path) in registry["held"]:
+                registry["held"].remove(str(path))
+                self.save_registry(registry)
+            elif not release and str(path) not in registry["held"]:
                 registry["held"].append(str(path))
                 self.save_registry(registry)
             return str(path)
@@ -228,8 +314,11 @@ class Engine:
         ):
             return "Git operation in progress"
         activity = [path, path / ".git", admin, admin / "HEAD", admin / "index", admin / "logs/HEAD"]
-        if max(entry.stat().st_mtime for entry in activity if entry.exists()) >= now - 3 * DAY:
-            return "active within 72 hours"
+        if (
+            max(entry.stat().st_mtime for entry in activity if entry.exists())
+            >= now - self.settings.worktree_hours * 3600
+        ):
+            return f"active within {self.settings.worktree_hours} hours"
         head = row.get("HEAD", "")
         if not re.fullmatch(r"[a-f0-9]{40}|[a-f0-9]{64}", head) or not self.repo.integrated(head):
             return "no matching remote-tracking integration branch"
@@ -238,8 +327,8 @@ class Engine:
         return ""
 
     @staticmethod
-    def clean_worktree(path: Path) -> bool:
-        return not git(
+    def clean_worktree(path: Path, *, permanent: bool = False) -> bool:
+        status = git(
             path,
             "status",
             "--porcelain=v1",
@@ -247,9 +336,32 @@ class Engine:
             "--untracked-files=all",
             "--ignored=matching",
             "--ignore-submodules=none",
+        ).split("\0")
+        return all(
+            mark.startswith("!! ")
+            and Engine.is_known_cache(path, mark[3:].rstrip("/"), permanent=permanent)
+            for mark in status
+            if mark
         ) and not any(
             line.startswith("160000 ") for line in git(path, "ls-files", "--stage", "-z").split("\0")
         )
+
+    @staticmethod
+    def is_known_cache(root: Path, relative: str, *, permanent: bool = False) -> bool:
+        path = root / relative
+        if not path.is_dir() or path.resolve() != path or not inside(path, root):
+            return False
+        if not dependency_cache(path):
+            return False
+        if permanent:
+
+            def inaccessible(error: OSError) -> None:
+                raise error
+
+            for _, dirs, files in os.walk(path, onerror=inaccessible):
+                if any(name.casefold() == ".git" or sensitive_name(name) for name in dirs + files):
+                    return False
+        return True
 
     def report_reason(self, path: Path) -> str:
         if not self.eligible_file_path(path) or not self.repo.ignored(path):
@@ -275,35 +387,45 @@ class Engine:
             pass
         return "invalid Playwright marker"
 
-    def candidates(self, opened: set[Path]) -> list[dict[str, Any]]:
+    def candidates(self, opened: set[Path], *, read_only: bool = False) -> list[dict[str, Any]]:
         now = time.time()
         registry = self.registry()
         holds = [Path(item) for item in registry["held"]]
         scheduled: dict[Path, dict[str, Any]] = {}
+        sampled_worktrees: set[Path] = set()
         for key, row in registry["managed"].items():
             path = Path(row["path"])
-            if path.exists() and (row["kind"] == "scratch" or row["checkout"] == str(self.root)):
+            if path.exists() and self.in_scope(row):
                 scheduled[path] = row | {"id": key}
-        ignored = git(
-            self.root, "ls-files", "--others", "--ignored", "--exclude-standard", "--directory", "-z"
-        )
-        reports = {self.root / name for name in REPORTS}
-        reports.update(
-            self.root / relative
-            for relative in ignored.split("\0")
-            if relative.endswith("/") and Path(relative).name in REPORTS
-        )
-        for path in reports:
-            if path.is_dir() or path.is_symlink():
+        if self.task is None:
+            worktrees = {Path(row["worktree"]).resolve(): row for row in self.repo.worktrees()[1:]}
+            excluded_tasks = {
+                Path(row["path"]) for row in registry["managed"].values() if not self.in_scope(row)
+            }
+            reports, findings, warning = discover(
+                self.root,
+                self.repo.tracked_paths(),
+                set(worktrees) | {self.state} | excluded_tasks,
+                protected,
+                self.settings.scan_limit,
+                now - self.settings.review_hours * 3600,
+            )
+            if warning:
+                self.warnings.append(warning)
+            for path in reports:
                 scheduled.setdefault(path, {"kind": "playwright", "path": str(path)})
-        for name in ("tmp", ".tmp", "scratch", ".scratch"):
-            path = self.root / name
-            if path.exists() or path.is_symlink():
-                scheduled.setdefault(path, {"kind": "legacy", "path": str(path)})
-        for worktree in self.repo.worktrees()[1:]:
-            path = Path(worktree["worktree"]).resolve()
-            if not inside(path, self.state):
-                scheduled[path] = {"kind": "worktree", "path": str(path), "git": worktree}
+            for finding in findings:
+                scheduled.setdefault(finding["path"], finding)
+            for path, worktree in worktrees.items():
+                if not inside(path, self.state):
+                    scheduled[path] = {"kind": "worktree", "path": str(path), "git": worktree}
+            if read_only:
+                existing = [path for path in worktrees if path in scheduled and path.is_dir()]
+                caches = ("node_modules", ".venv", "frontend/node_modules", "web/node_modules")
+                existing.sort(
+                    key=lambda path: (not any((path / cache).is_dir() for cache in caches), path)
+                )
+                sampled_worktrees.update(existing[:5])
         results = []
         for path, row in sorted(scheduled.items()):
             reason = ""
@@ -314,14 +436,37 @@ class Engine:
                 elif in_use(path, opened):
                     reason = "open in a running process"
                 elif row["kind"] == "legacy":
-                    reason = "unknown owner or purpose"
+                    record.update(
+                        status="review",
+                        evidence=row["evidence"],
+                        bytes=row["bytes"],
+                        size_complete=row.get("size_complete", True),
+                    )
+                    reason = "unknown owner or purpose; advisory only"
                 elif row["kind"] == "worktree":
                     reason = self.worktree_reason(row["git"], now)
                     record["git"] = row["git"]
+                    if not reason:
+                        size, complete = estimated_bytes(path)
+                        record.update(
+                            bytes=size,
+                            size_complete=complete,
+                            evidence="clean linked checkout; HEAD in a remote-tracking integration branch",
+                        )
+                        if not self.whole_repo:
+                            record["status"] = "review"
+                            reason = "eligible for an explicit --repo cleanup from the primary checkout"
                 else:
                     reason = self.file_reason(path, row, record, now)
             except (SafetyError, OSError) as error:
                 reason = str(error)
+            if path in sampled_worktrees and "bytes" not in record:
+                size, complete = estimated_bytes(path, limit=5_000)
+                record.update(
+                    bytes=size,
+                    size_complete=complete,
+                    evidence="linked Git checkout; bounded size measurement",
+                )
             if reason:
                 record["reason"] = reason
             else:
@@ -333,8 +478,8 @@ class Engine:
         kind = row["kind"]
         if kind == "scratch" and (path.parent != self.state / "scratch" or path.name != row["id"]):
             return "invalid scratch path"
-        if kind == "registered" and not self.eligible_file_path(path):
-            return "tracked or outside the safe project paths"
+        if kind == "registered" and not self.eligible_registered_path(path):
+            return "tracked, source-like, or outside the safe project paths"
         if kind == "registered-temp" and not self.eligible_temp_path(path):
             return "outside safe system temp paths or inside a Git checkout"
         if kind == "playwright":
@@ -344,32 +489,74 @@ class Engine:
         current, digest, size, touched = inspect(path)
         if kind in {"registered", "registered-temp"} and list(current[:2]) != row["identity"]:
             return "registered file was replaced"
-        if kind == "scratch" and not row["finished"] and touched >= now - 2 * DAY:
+        if (
+            kind == "scratch"
+            and not row["finished"]
+            and touched >= now - self.settings.scratch_hours * 3600
+        ):
             return "scratch allocation still active"
-        if kind == "playwright" and touched >= now - 7 * DAY:
-            return "generated report is newer than seven days"
-        record.update(signature=list(current), fingerprint=digest, bytes=size)
+        if kind == "playwright" and touched >= now - self.settings.report_days * DAY:
+            return f"generated report is newer than {self.settings.report_days} days"
+        evidence = {
+            "playwright": "Git-ignored output with a Playwright marker",
+            "scratch": "managed scratch allocation",
+            "registered": "explicitly registered artifact",
+            "registered-temp": "explicitly registered system temp artifact",
+        }
+        record.update(signature=list(current), fingerprint=digest, bytes=size, evidence=evidence[kind])
+        if "id" in row:
+            record["registration"] = row["id"]
         return ""
 
-    def scan(self) -> list[dict[str, Any]]:
-        return self.candidates(processes())
+    def scan(self, *, read_only: bool = False) -> list[dict[str, Any]]:
+        self.warnings.clear()
+        try:
+            opened = processes()
+        except (SafetyError, OSError) as error:
+            if not read_only:
+                raise
+            self.warnings.append(f"Open files could not be checked: {error}")
+            findings = self.candidates(set(), read_only=True)
+            for item in findings:
+                if item["status"] == "ready":
+                    item.update(status="review", reason="open files could not be checked")
+            return findings
+        return self.candidates(opened, read_only=read_only)
 
     def clean(self) -> dict[str, Any]:
         with self.locked():
             entries = self.scan()
             ready = [item for item in entries if item["status"] == "ready"]
-            result: dict[str, Any] = {"batch": None, "moved": 0, "bytes": 0, "items": entries}
+            result: dict[str, Any] = {
+                "batch": None,
+                "moved": 0,
+                "bytes": 0,
+                "items": entries,
+                "warnings": self.warnings,
+            }
             if not ready:
                 return result
             batch_id = new_id()
             folder = private_dir(private_dir(self.state / "batches") / batch_id)
             items = private_dir(folder / "items")
             journal = folder / "journal.json"
-            batch: dict[str, Any] = {"id": batch_id, "created": time.time(), "items": []}
+            batch: dict[str, Any] = {
+                "id": batch_id,
+                "created": time.time(),
+                "items": [],
+                "checkout": str(self.root),
+                "task": self.task,
+                "whole_repo": self.whole_repo,
+            }
             opened = processes()
             for index, entry in enumerate(ready):
                 path = Path(entry["path"])
                 destination = items / str(index)
+                if (
+                    entry["kind"] in {"registered", "registered-temp"}
+                    and entry["signature"][0] != items.stat().st_dev
+                ):
+                    destination = self.volume_destination(path, batch_id, index)
                 line = entry | {"target": str(destination), "status": "pending"}
                 batch["items"].append(line)
                 write_json(journal, batch)
@@ -389,12 +576,18 @@ class Engine:
                         current, digest, _, _ = inspect(path)
                         if digest != entry["fingerprint"]:
                             raise SafetyError("Item changed since inspection.")
-                        if entry["kind"] == "registered" and not self.eligible_file_path(path):
-                            raise SafetyError("Item is now tracked or outside the safe project paths.")
+                        if entry["kind"] == "registered" and not self.eligible_registered_path(path):
+                            raise SafetyError(
+                                "Item is now tracked, source-like or outside the safe paths."
+                            )
                         if entry["kind"] == "registered-temp" and not self.eligible_temp_path(path):
                             raise SafetyError("Item no longer qualifies as a system temp file.")
                         if entry["kind"] == "playwright" and (reason := self.report_reason(path)):
                             raise SafetyError(reason)
+                        if destination.parent != items:
+                            with directory_fd(path.parent) as parent:
+                                os.mkdir(destination.parent.name, mode=0o700, dir_fd=parent)
+                                os.fsync(parent)
                         rename_checked(path, destination, current)
                         line["quarantine_fingerprint"] = inspect(destination)[1]
                     entry["status"] = line["status"] = "moved"
@@ -403,6 +596,7 @@ class Engine:
                 except (OSError, SafetyError) as error:
                     entry.update(status="error", reason=str(error))
                     line["reason"] = str(error)
+                    self.remove_volume_if_empty(destination)
                 write_json(journal, batch)
             result["batch"] = batch_id
             return result
@@ -421,53 +615,131 @@ class Engine:
                     batches.append(journal)
         return sorted(batches, key=lambda item: (item["created"], item["id"]), reverse=True)
 
+    @staticmethod
+    def volume_destination(path: Path, batch: str, index: int) -> Path:
+        return path.parent / f".leftoverkit-quarantine-{batch}-{index}" / "item"
+
+    def storage_path(self, batch: dict[str, Any], index: int, item: dict[str, Any]) -> Path:
+        local = self.state / "batches" / batch["id"] / "items" / str(index)
+        target = Path(item.get("target", str(local)))
+        if target == local:
+            return target
+        external = self.volume_destination(Path(item["path"]), batch["id"], index)
+        if item["kind"] not in {"registered", "registered-temp"} or target != external:
+            raise SafetyError("Unexpected quarantine path in journal.")
+        if os.path.lexists(target.parent):
+            require_private(target.parent)
+        return target
+
+    def scoped_batch(self, batch: dict[str, Any]) -> bool:
+        if self.whole_repo:
+            return True
+        if "checkout" in batch:
+            return (
+                not batch.get("whole_repo")
+                and batch["checkout"] == str(self.root)
+                and batch.get("task") == self.task
+            )
+        if self.task is not None:
+            return False
+        registry = self.registry()["managed"].values()
+        return bool(batch["items"]) and all(
+            inside(Path(item["path"]), self.root)
+            or any(
+                row["path"] == item["path"] and row.get("checkout") == str(self.root) for row in registry
+            )
+            for item in batch["items"]
+        )
+
+    def restorable(self, batch: dict[str, Any]) -> Iterator[tuple[dict[str, Any], Path]]:
+        for index, item in enumerate(batch["items"]):
+            if item["status"] in {"restored", "purged"}:
+                continue
+            source = self.storage_path(batch, index, item)
+            if os.path.lexists(source):
+                yield item, source
+
+    def batch_list(self, limit: int) -> list[dict[str, Any]]:
+        return [
+            {
+                "id": batch["id"],
+                "checkout": batch.get("checkout"),
+                "task": batch.get("task"),
+                "repo_scope": batch.get("whole_repo", False),
+                "created": batch["created"],
+                "restorable": len(remaining),
+                "bytes": sum(item.get("bytes", 0) for item, _ in remaining),
+            }
+            for batch in (row for row in self.batches() if self.scoped_batch(row))
+            for remaining in [list(self.restorable(batch))]
+        ][:limit]
+
     def undo(self, batch_id: str) -> dict[str, Any]:
         with self.locked():
-            batch = next(
-                (batch for batch in self.batches() if batch_id in ("latest", batch["id"])), None
-            )
-            if batch is None:
-                raise SafetyError("No matching cleanup batch.")
+            for batch in self.batches():
+                if not self.scoped_batch(batch) or batch_id not in ("latest", batch["id"]):
+                    continue
+                eligible = list(self.restorable(batch))
+                if eligible or batch_id != "latest":
+                    break
+            else:
+                raise SafetyError("No restorable cleanup batch in this scope.")
+            if not eligible:
+                return {
+                    "batch": batch["id"],
+                    "items": [],
+                    "warnings": ["Batch has no items left to restore."],
+                }
             journal = self.state / "batches" / batch["id"] / "journal.json"
             results = []
             opened = processes()
-            for index, line in enumerate(batch["items"]):
-                source = journal.parent / "items" / str(index)
+            registry = self.registry()
+            for line, source in eligible:
                 target = Path(line["path"])
-                if line["status"] in {"restored", "purged"} or not source.exists():
-                    continue
                 try:
                     if os.path.lexists(target):
                         raise SafetyError("Original path already exists; both copies were kept.")
                     if in_use(source, opened):
                         raise SafetyError("The quarantined item is in use.")
                     if line["kind"] == "worktree":
-                        with directory_fd(target.parent):
+                        with directory_fd(target.parent, create=True):
                             git(self.root, "worktree", "move", "--", str(source), str(target))
                     else:
-                        registry = self.registry()
                         if str(target) not in registry["held"]:
                             registry["held"].append(str(target))
                             self.save_registry(registry)
-                        rename_checked(source, target, signature(source.lstat()))
+                        rename_checked(source, target, signature(source.lstat()), create_parents=True)
                     line["status"] = "restored"
                     write_json(journal, batch)
                     results.append({"path": str(target), "status": "restored"})
+                    self.remove_volume_if_empty(source)
                 except (OSError, SafetyError) as error:
                     results.append({"path": str(target), "status": "error", "reason": str(error)})
             return {"batch": batch["id"], "items": results}
+
+    @staticmethod
+    def remove_volume_if_empty(path: Path) -> None:
+        if path.parent.name.startswith(".leftoverkit-quarantine-"):
+            with contextlib.suppress(OSError):
+                path.parent.rmdir()
+                sync_directory(path.parent.parent)
 
     def purge(self) -> dict[str, Any]:
         results = []
         with self.locked():
             batches = [
-                item for item in self.batches() if item["created"] < time.time() - HOLD_DAYS * DAY
+                item
+                for item in self.batches()
+                if self.scoped_batch(item)
+                and item["created"] < time.time() - self.settings.retention_days * DAY
             ]
             opened = processes() if batches else set()
+            registry = self.registry()
+            before = len(registry["managed"])
             for batch in batches:
                 directory = self.state / "batches" / batch["id"]
                 for index, item in enumerate(batch["items"]):
-                    target = directory / "items" / str(index)
+                    target = self.storage_path(batch, index, item)
                     if item["status"] != "moved" or not target.exists():
                         continue
                     try:
@@ -483,7 +755,7 @@ class Engine:
                                 or row.get("HEAD") != item["git"].get("HEAD")
                                 or row.get("branch") != item["git"].get("branch")
                                 or not self.repo.integrated(row["HEAD"])
-                                or not self.clean_worktree(target)
+                                or not self.clean_worktree(target, permanent=True)
                             ):
                                 raise SafetyError(
                                     "The quarantined worktree changed or is no longer integrated."
@@ -497,8 +769,44 @@ class Engine:
                             else:
                                 target.unlink()
                         item["status"] = "purged"
+                        record = item.get("registration")
+                        if record is not None and not os.path.lexists(item["path"]):
+                            registry["managed"].pop(record, None)
                         write_json(directory / "journal.json", batch)
+                        self.remove_volume_if_empty(target)
                         results.append({"path": item["path"], "status": "purged"})
                     except (OSError, SafetyError) as error:
                         results.append({"path": item["path"], "status": "error", "reason": str(error)})
+            protected_records: set[str] = set()
+            protected_tasks: set[str] = set()
+            for batch in self.batches():
+                active = list(self.restorable(batch))
+                protected_records.update(
+                    item["registration"] for item, _ in active if "registration" in item
+                )
+                if active and batch.get("task"):
+                    protected_tasks.add(batch["task"])
+            cutoff = time.time() - self.settings.retention_days * DAY
+            for key, row in list(registry["managed"].items()):
+                if (
+                    self.in_scope(row)
+                    and key not in protected_records
+                    and row.get("created", cutoff) < cutoff
+                    and not os.path.lexists(row["path"])
+                ):
+                    del registry["managed"][key]
+            tasks = registry.get("tasks", {})
+            before_tasks = len(tasks)
+            active_tasks = {row.get("task") for row in registry["managed"].values()}
+            for key, row in list(tasks.items()):
+                if (
+                    (self.whole_repo or row["checkout"] == str(self.root))
+                    and (not self.task or key == self.task)
+                    and key not in active_tasks
+                    and key not in protected_tasks
+                    and row["created"] < cutoff
+                ):
+                    del tasks[key]
+            if len(registry["managed"]) != before or len(tasks) != before_tasks:
+                self.save_registry(registry)
         return {"items": results}

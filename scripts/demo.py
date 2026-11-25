@@ -75,12 +75,12 @@ def main() -> None:
         run("git", "worktree", "add", "-qb", "finished-fix", str(worktree), "HEAD", cwd=repo)
         old_worktree(repo, worktree)
 
-        clean = json.loads(run(cli, "clean", "--json", cwd=repo))
+        clean = json.loads(run(cli, "clean", "--repo", "--json", cwd=repo))
         assert clean["moved"] == 3, clean
         assert not any(path.exists() for path in (work, report, worktree))
         assert (repo / "app.py").read_text() == 'print("hello")\n'
         assert (unknown / "old-notes.txt").is_file()
-        restored = json.loads(run(cli, "undo", clean["batch"], "--json", cwd=repo))
+        restored = json.loads(run(cli, "undo", "--repo", clean["batch"], "--json", cwd=repo))
         assert len(restored["items"]) == 3, restored
         assert all((work / name).read_bytes() == data for name, data in files.items())
         assert marker.is_file()

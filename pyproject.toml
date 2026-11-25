@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "leftoverkit"
-version = "0.2.0"
-description = "Clean up after coding agents with one command and an undo button."
+version = "0.3.0"
+description = "Inspect development leftovers and quarantine artifacts with explicit task scope."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"

@@ -1,22 +1,17 @@
-# See 991 files disappear
+# Try discovery before cleanup
 
-Open [`docs/demo.html`](demo.html) in a browser from a local checkout. Click **Clean the demo project**, then **Undo cleanup**. The file map, file counts and worktree count replay a run that was executed with the real CLI. The browser operates on bundled fixture data.
-
-![Animated before, cleanup and undo](media/cleanup.gif)
-
-## Run the same case
+Run the discovery case from the LeftoverKit source checkout after installing its CLI:
 
 ```sh
-uv tool install .
-python3 scripts/showcase_fixture.py
+python3 scripts/discovery_fixture.py
 ```
 
-The script creates a disposable Git project, a sibling system temp directory, six categories of temporary files and two worktrees. It checks the bytes of all 991 files after restoring them. Tracked source, local configuration, delivered evidence, an unknown temp file and a log held open by a real subprocess stay in place. The worktree with a unique commit stays too.
+The fixture creates an existing-style Git repository. It does not call `scratch` or `register`. It contains an ignored-parent Playwright report, an old build log, an untracked diagnostic script and patch, tracked source, a private config file and a worktree with ignored dependencies. It verifies which items are ready, advisory and protected. It also confirms that `scan` writes no state.
 
-| Replay | Measured result |
-| --- | --- |
-| Before | 991 eligible temporary files and 2 linked worktrees |
-| After | 0 of those files in their original locations, 1 worktree left in place |
-| Undo | 991 files restored and the moved worktree restored on its original branch |
+For a real checkout, run `leftoverkit scan` from that project. The result shows evidence rather than guessing who created each file. Review-only artifacts stay in place.
 
-To rebuild the browser data, use `python3 scripts/showcase_fixture.py --browser-data docs/showcase/evidence.js`. The shorter smoke test is `python3 scripts/demo.py`.
+## What the earlier 991-file replay tests
+
+The [interactive replay](demo.html) demonstrates rollback of **five known objects** in a synthetic project. Those objects contain 991 files and one worktree. Most files were in managed scratch or a prepared report directory. The replay proves isolation and byte-for-byte restoration. It does not measure first-scan discovery, runtime, or disk space saved.
+
+To run that recovery case, use `python3 scripts/showcase_fixture.py`. The quick recovery smoke test is `python3 scripts/demo.py`.

@@ -6,7 +6,6 @@ import contextlib
 import hashlib
 import json
 import os
-import shutil
 import stat
 import subprocess
 import sys
@@ -20,6 +19,7 @@ GIT_ENV = {key: val for key, val in os.environ.items() if not key.startswith("GI
     "GIT_OPTIONAL_LOCKS": "0",
     "GIT_NO_LAZY_FETCH": "1",
     "GIT_TERMINAL_PROMPT": "0",
+    "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
 }
 INTEGRATION = {"dev", "develop", "main", "master", "prod", "qa", "release", "staging"}
 
@@ -31,7 +31,7 @@ class SafetyError(Exception):
 def git(directory: Path, *args: str, allow_no_match: bool = False) -> str:
     result = subprocess.run(
         [
-            "git",
+            system_tool("git", ("/usr/bin", "/bin")),
             "-C",
             str(directory),
             "-c",
@@ -66,6 +66,21 @@ class Repo:
         ).resolve()
         self.state = self.common / "leftoverkit"
         self.primary = Path(self.worktrees()[0]["worktree"]).resolve()
+        external = os.environ.get("LEFTOVERKIT_STATE_DIR")
+        if external:
+            configured = Path(external)
+            if (
+                not configured.is_absolute()
+                or configured.resolve() != configured
+                or any(inside(configured, checkout) for checkout in (self.root, self.primary))
+            ):
+                raise SafetyError(
+                    "LEFTOVERKIT_STATE_DIR must be an absolute, non-symlink path outside the checkout."
+                )
+            require_private(configured)
+            # Bind external state to this Git repository so one setting cannot merge projects.
+            key = hashlib.sha256(os.fsencode(self.common)).hexdigest()[:24]
+            self.state = configured / key
         if self.state.exists() or self.state.is_symlink():
             require_private(self.state)
 
@@ -84,11 +99,16 @@ class Repo:
     def tracked(self, path: Path) -> bool:
         # Treat case and Unicode aliases conservatively on all filesystems.
         relative = normalize_path(path.relative_to(self.root).as_posix())
-        for tracked in git(self.root, "ls-files", "--cached", "-z").split("\0"):
-            alias = normalize_path(tracked)
-            if alias == relative or alias.startswith(relative + "/"):
-                return True
-        return False
+        return any(
+            alias == relative or alias.startswith(relative + "/") for alias in self.tracked_paths()
+        )
+
+    def tracked_paths(self) -> set[str]:
+        return {
+            normalize_path(path)
+            for path in git(self.root, "ls-files", "--cached", "-z").split("\0")
+            if path
+        }
 
     def ignored(self, path: Path) -> bool:
         return bool(
@@ -183,14 +203,24 @@ def write_json(path: Path, data: Any) -> None:
 
 
 @contextlib.contextmanager
-def directory_fd(path: Path) -> Iterator[int]:
+def directory_fd(path: Path, *, create: bool = False) -> Iterator[int]:
     if not path.is_absolute():
         raise SafetyError("Expected an absolute path.")
     flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
     fd = os.open("/", flags)
     try:
         for part in path.parts[1:]:
-            child = os.open(part, flags, dir_fd=fd)
+            try:
+                child = os.open(part, flags, dir_fd=fd)
+            except FileNotFoundError:
+                if not create:
+                    raise
+                try:
+                    os.mkdir(part, mode=0o700, dir_fd=fd)
+                    os.fsync(fd)
+                except FileExistsError:
+                    pass
+                child = os.open(part, flags, dir_fd=fd)
             os.close(fd)
             fd = child
         yield fd
@@ -246,8 +276,10 @@ def inspect(path: Path) -> tuple[tuple[int, ...], str, int, float]:
     return signature(root), digest.hexdigest(), size, modified
 
 
-def rename_checked(source: Path, target: Path, expected: tuple[int, ...]) -> None:
-    with directory_fd(source.parent) as src, directory_fd(target.parent) as dst:
+def rename_checked(
+    source: Path, target: Path, expected: tuple[int, ...], *, create_parents: bool = False
+) -> None:
+    with directory_fd(source.parent) as src, directory_fd(target.parent, create=create_parents) as dst:
         current = os.stat(source.name, dir_fd=src, follow_symlinks=False)
         if signature(current) != expected:
             raise SafetyError("Item changed during cleanup.")
@@ -284,16 +316,25 @@ def rename_no_replace(src: int, source: str, dst: int, target: str) -> None:
         raise OSError(errno, os.strerror(errno), str(target))
 
 
+def system_tool(name: str, directories: tuple[str, ...]) -> str:
+    for directory in directories:
+        path = Path(directory) / name
+        if path.is_file() and os.access(path, os.X_OK):
+            return str(path)
+    raise SafetyError(f"{name} is unavailable in system directories.")
+
+
 def processes() -> set[Path]:
-    executable = shutil.which("lsof") or ("/usr/sbin/lsof" if Path("/usr/sbin/lsof").is_file() else None)
-    if executable is None:
-        raise SafetyError("lsof is unavailable; automatic moves are disabled.")
-    result = subprocess.run(
-        [executable, "-w", "-a", "-u", str(os.getuid()), "-F0fn"],
-        check=False,
-        capture_output=True,
-        timeout=25,
-    )
+    executable = system_tool("lsof", ("/usr/sbin", "/usr/bin", "/bin", "/sbin"))
+    try:
+        result = subprocess.run(
+            [executable, "-w", "-a", "-u", str(os.getuid()), "-F0fn"],
+            check=False,
+            capture_output=True,
+            timeout=25,
+        )
+    except subprocess.TimeoutExpired as error:
+        raise SafetyError("Open-file detection timed out.") from error
     fields = (field.lstrip(b"\n") for field in result.stdout.split(b"\0"))
     paths = {Path(os.fsdecode(field[1:])).resolve() for field in fields if field.startswith(b"n/")}
     if result.returncode or not paths:

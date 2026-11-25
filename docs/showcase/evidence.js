@@ -8,6 +8,8 @@ window.demoEvidence = {
     "scripts": 37,
     "patches": 24
   },
+  "moved_objects": 5,
+  "restored_objects": 5,
   "moved_files": 991,
   "restored_files": 991,
   "protected": [

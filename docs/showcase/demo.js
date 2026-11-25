@@ -2,9 +2,9 @@
 
 const copy = {
   zh: {
-    title: ["AI 活干完了。", "临时文件留了一地。"],
-    lede: "点一下，看哪些能清走，哪些会留下。",
-    fixture: "可复现演示",
+    title: ["已知对象", "隔离和恢复"],
+    lede: "演练从五个已知对象开始，它们包含 991 个文件。",
+    fixture: "恢复演练",
     fileLabel: "待清理的临时文件",
     before: "清理前",
     after: "清理后",
@@ -16,7 +16,7 @@ const copy = {
     worktrees: "个附加工作树",
     retained: "这些一直留在原处",
     guard: "清理完也照常使用。",
-    fixtureNote: "这里回放一套真实 CLI 测试的结果。演示数据为合成数据，网页不会操作你的文件。",
+    fixtureNote: "这里只验证已知对象能否恢复。数据来自合成项目。",
     reproduce: "查看复现步骤 ↗",
     first: (n) => n + " 个文件可以清理，仍在使用的东西会留下。",
     cleaned: (n) => n + " 个文件和 1 个工作树已移入隔离区。",
@@ -30,9 +30,9 @@ const copy = {
     keep: ["项目源码", "本机配置 .env", "验收交付物", "占用中的日志", "来源不明的 tmp", "未合并工作树"],
   },
   en: {
-    title: ["AI finished the work.", "It left a mess."],
-    lede: "Try one cleanup. See what moves and what stays.",
-    fixture: "Reproducible demo",
+    title: ["Known objects", "Quarantine and undo"],
+    lede: "A recovery run for five selected objects containing 991 files.",
+    fixture: "Recovery fixture",
     fileLabel: "temporary files ready to move",
     before: "Before",
     after: "After",
@@ -44,7 +44,7 @@ const copy = {
     worktrees: "linked worktrees",
     retained: "These stay put",
     guard: "They’re still there after cleanup.",
-    fixtureNote: "This replays a verified CLI run in a synthetic repo. The page never touches your files.",
+    fixtureNote: "Synthetic recovery test. See the separate first-scan fixture for discovery.",
     reproduce: "Reproduce this run ↗",
     first: (n) => n + " files are ready. Anything still in use stays put.",
     cleaned: (n) => n + " files and 1 worktree moved to quarantine.",
@@ -79,6 +79,7 @@ const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 const ready = (
   evidence?.synthetic && evidence.original_bytes_verified && total > 0
   && cells.length === total && evidence.restored_files === total
+  && evidence.moved_objects > 0 && evidence.moved_objects === evidence.restored_objects
   && evidence.protected.length === 5 && Boolean(context)
 );
 
