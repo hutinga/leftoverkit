@@ -1,0 +1,14 @@
+{
+  "moved": 3,
+  "items": [
+    "agent scratch (3 files)",
+    "Playwright report",
+    "merged linked worktree"
+  ],
+  "kept": [
+    "app.py (tracked source)",
+    "tmp/old-notes.txt (unknown owner)"
+  ],
+  "restored": 3,
+  "content_verified": true
+}

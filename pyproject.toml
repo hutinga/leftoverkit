@@ -1,0 +1,30 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "leftoverkit"
+version = "0.2.0"
+description = "Clean up after coding agents with one command and an undo button."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+dependencies = []
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Operating System :: POSIX",
+  "Programming Language :: Python :: 3",
+  "Topic :: Software Development",
+]
+
+[project.scripts]
+leftoverkit = "leftoverkit.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/leftoverkit"]
+
+[tool.ruff]
+line-length = 105
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

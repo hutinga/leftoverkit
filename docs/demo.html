@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Try a visual replay of LeftoverKit cleaning and restoring 991 temporary files.">
+  <title>991 个临时文件 · LeftoverKit</title>
+  <link rel="stylesheet" href="showcase/demo.css">
+  <script src="showcase/evidence.js" defer></script>
+  <script src="showcase/demo.js" defer></script>
+</head>
+<body>
+  <div class="shell">
+    <header class="top">
+      <div class="brand"><span class="mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>LeftoverKit</div>
+      <div class="top-actions">
+        <span class="fixture"><span></span><b data-copy="fixture">可复现演示</b></span>
+        <button type="button" class="language" id="language" aria-label="Switch to English">EN</button>
+      </div>
+    </header>
+    <main>
+      <section class="showcase" aria-labelledby="title">
+        <div class="hero">
+          <div class="intro">
+            <h1 id="title" data-copy="title">AI 活干完了。<br>临时文件留了一地。</h1>
+            <p class="lede" data-copy="lede">点一下，看哪些能清走，哪些会留下。</p>
+          </div>
+          <div class="metric" aria-hidden="true">
+            <span class="count" id="count">—</span>
+            <span class="unit" data-copy="fileLabel">待清理的临时文件</span>
+          </div>
+          <div class="controls">
+            <button type="button" class="primary" id="action" disabled>
+              <span id="action-label">清理演示项目</span><span id="action-icon" aria-hidden="true">↘</span>
+            </button>
+            <p class="status" id="feedback" role="status" aria-live="polite"></p>
+          </div>
+        </div>
+        <section class="workspace" aria-labelledby="workspace-title" data-stage="before">
+          <header class="workspace-bar">
+            <div>
+              <h2 id="workspace-title" data-copy="workspace">演示项目</h2>
+              <span class="phase" id="phase" data-copy="before">清理前</span>
+            </div>
+            <code id="command">leftoverkit clean</code>
+          </header>
+          <div class="map" id="map"><canvas id="cells" aria-hidden="true"></canvas><div class="map-note" id="map-note" hidden aria-hidden="true"></div></div>
+          <div class="chart-caption">
+            <span data-copy="cellLegend">每格代表一个临时文件</span>
+            <span><b id="worktrees">—</b> <span data-copy="worktrees">个附加工作树</span></span>
+          </div>
+          <ul class="groups" id="groups" aria-label="文件类型"></ul>
+        </section>
+      </section>
+      <section class="retained" aria-labelledby="retained-title">
+        <div>
+          <h2 id="retained-title" data-copy="retained">这些一直留在原处</h2>
+          <p data-copy="guard">清理完也照常使用。</p>
+        </div>
+        <ul id="protected"></ul>
+      </section>
+      <footer>
+        <p data-copy="fixtureNote">这里回放一套真实 CLI 测试的结果。演示数据为合成数据，网页不会操作你的文件。</p>
+        <a href="DEMO.md" data-copy="reproduce">查看复现步骤 ↗</a>
+      </footer>
+    </main>
+  </div>
+  <noscript>请启用 JavaScript 体验演示 / Enable JavaScript to try the demo.</noscript>
+</body>
+</html>
