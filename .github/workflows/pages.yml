@@ -16,7 +16,18 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  demo:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare the standalone replay
+        run: install -D docs/first-scan.html "$RUNNER_TEMP/site/index.html"
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: ${{ runner.temp }}/site
+
+  publish:
+    needs: prepare
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -26,11 +37,5 @@ jobs:
       name: github-pages
       url: ${{ steps.publish.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
-      - name: Prepare the standalone replay
-        run: install -D docs/first-scan.html "$RUNNER_TEMP/site/index.html"
-      - uses: actions/upload-pages-artifact@v4
-        with:
-          path: ${{ runner.temp }}/site
       - uses: actions/deploy-pages@v4
         id: publish
