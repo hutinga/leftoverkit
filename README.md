@@ -4,9 +4,9 @@
 
 One read-only scan finds old test reports, logs, temporary scripts, patches and Git worktrees. See why each item surfaced and how much space it takes.
 
-**[Try the online demo](../../deployments/activity_log?environments_filter=github-pages) · [Scan my repo](#scan-your-existing-checkout) · [中文](docs/README.zh-CN.md)**
+**[Try the online demo](../../actions/runs/45606858091) · [Scan my repo](#scan-your-existing-checkout) · [中文](docs/README.zh-CN.md)**
 
-[![LeftoverKit finds a Playwright report under a Git-ignored parent directory and highlights the evidence](docs/media/first-scan.gif)](../../deployments/activity_log?environments_filter=github-pages)
+[![LeftoverKit finds a Playwright report under a Git-ignored parent directory and highlights the evidence](docs/media/first-scan.gif)](../../actions/runs/45606858091)
 
 This Playwright report sits under a Git-ignored folder. LeftoverKit spotted the report's marker on its first pass. This replay uses a synthetic checkout with zero registered files.
 
