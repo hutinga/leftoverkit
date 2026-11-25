@@ -21,7 +21,7 @@ GIT_ENV = {key: val for key, val in os.environ.items() if not key.startswith("GI
     "GIT_NO_LAZY_FETCH": "1",
     "GIT_TERMINAL_PROMPT": "0",
 }
-INTEGRATION = {"dev", "dev2", "develop", "main", "master", "prod", "qa", "release", "staging"}
+INTEGRATION = {"dev", "develop", "main", "master", "prod", "qa", "release", "staging"}
 
 
 class SafetyError(Exception):

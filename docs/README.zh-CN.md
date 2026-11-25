@@ -12,13 +12,13 @@
 
 ## 安装
 
-适用于 macOS 和 Linux，需要 Python 3.11+、Git 和 `lsof`。从 GitHub 安装。
+适用于 macOS 和 Linux，需要 Python 3.11+、Git 和 `lsof`。克隆或下载源码后，在项目根目录运行下面的命令。
 
 ```sh
-uv tool install git+https://github.com/hutinga/leftoverkit.git && leftoverkit install
+uv tool install . && leftoverkit install
 ```
 
-`leftoverkit install` 为 Codex 和 Claude Code 安装 skill。只用命令行时，运行 `&&` 前的安装命令即可。本地源码安装可以运行 `uv tool install .`。
+`leftoverkit install` 为 Codex 和 Claude Code 安装 skill。只用命令行时，运行 `uv tool install .` 即可。
 
 ## 清理与恢复
 

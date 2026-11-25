@@ -15,13 +15,13 @@ Tell Codex or Claude Code **“Clean up the temporary files you made.”** Or ru
 
 Requires Python 3.11+, Git and `lsof`. Targets macOS and Linux.
 
-Install from GitHub.
+Clone or download the repository and run the following command from its root.
 
 ```sh
-uv tool install git+https://github.com/hutinga/leftoverkit.git && leftoverkit install
+uv tool install . && leftoverkit install
 ```
 
-`leftoverkit install` adds the skill to Codex and Claude Code. Reopen the agent if the newly installed skill is missing. For CLI-only use, run the install command without `&& leftoverkit install`. To install from a checkout, run `uv tool install .`. You can also install a built wheel with `pipx install /path/to/the.whl`.
+`leftoverkit install` adds the skill to Codex and Claude Code. Reopen the agent if the newly installed skill is missing. For CLI-only use, run `uv tool install .`. You can also install a built wheel with `pipx install /path/to/the.whl`.
 
 ## Use
 
