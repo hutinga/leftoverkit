@@ -2,18 +2,22 @@
 
 **AI 干完了，仓库里还剩什么？**
 
-把旧日志、补丁、临时脚本、测试报告和工作树扫一遍。每条发现都有依据和体积，首次扫描只读。
+一条命令，只读扫描 Git 仓库里的旧工作树、日志、临时脚本、补丁和测试报告。每条发现都带着识别依据和文件体积。
 
-[![首次扫描一个合成仓库，发现六项，移动文件零个](media/first-scan-zh.gif)](DEMO.md#watch-the-first-scan)
+**[在线试玩](../../../deployments/github-pages) · [扫我的仓库](#先试只读扫描) · [English](../README.md)**
 
-[扫描自己的仓库 ↓](#先试只读扫描) · [看扫描回放](DEMO.md#watch-the-first-scan)
+[![首次扫描在被 Git 忽略的父目录里发现 Playwright 报告，并高亮展示识别依据](media/first-scan-zh.gif)](../../../deployments/github-pages)
+
+这份 Playwright 报告藏在 Git 忽略的目录里。LeftoverKit 第一次扫，就从报告内容里找到了识别标记。演示用的是合成仓库，事先登记的文件为零。
 
 ## 先试只读扫描
 
-适用于 macOS 和 Linux，需要 Python 3.11+、Git 和 `uv`。从本开源仓库的 **Code** 菜单复制 HTTPS 地址，然后在**想检查的项目**里运行：
+在想检查的项目目录里，复制运行下面这段命令。适用于 macOS 和 Linux，需要 Python 3.11+、Git、`curl` 和 `uv`。
 
 ```sh
-uvx --from 'git+这里粘贴开源仓库的HTTPS地址' leftoverkit scan
+repo=$(curl -fsSL https://api.github.com/repositories/1471583448 |
+  python3 -c 'import json, sys; print(json.load(sys.stdin)["clone_url"])') &&
+  uvx --from "git+$repo" leftoverkit scan
 ```
 
 扫描不会写清理记录，也不会移动文件。安装版可直接运行 `leftoverkit scan`。用 `--json` 可以查看完整结果。

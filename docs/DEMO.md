@@ -2,9 +2,11 @@
 
 ## Watch the first scan
 
-[![Read-only first scan replay](media/first-scan.png)](first-scan.html)
+[![Read-only first scan, with the discovered Playwright report highlighted](media/first-scan.png)](../../../deployments/github-pages)
 
-[Download the self-contained replay](first-scan.html?raw=1), then open it in a browser and click **Run demo scan**. The animation plays the recorded output of **one eligible item, five for review and zero files moved**. The case uses a synthetic Git checkout with zero registrations.
+Open the repository's [GitHub Pages deployment](../../../deployments/github-pages) and click **View deployment** to play the scan in your browser. The repository's **About** link goes straight to the replay.
+
+Click **Run demo scan** to see the Playwright report under the Git-ignored `generated/` directory. The recorded CLI run found **one eligible item and five for review**, and moved **zero files** in a synthetic checkout with zero registrations. The [self-contained HTML](first-scan.html?raw=1) also plays offline.
 
 ## Reproduce it
 

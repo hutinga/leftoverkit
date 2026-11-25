@@ -29,23 +29,25 @@ html[lang="zh-CN"] h1{font-size:clamp(42px,4.85vw,75px);letter-spacing:-.07em;li
 .actions{margin-top:23px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
 .actions button{border:0;border-radius:7px;background:var(--green);color:#17201a;font-weight:790;min-height:48px;padding:11px 17px;display:inline-flex;align-items:center;gap:12px}
 .actions button:hover:not(:disabled){background:#d2ffab}.actions button:disabled{opacity:.63}
-.actions button span{color:inherit;font-size:19px}
 .outcome{min-width:0;background:var(--panel);border:1px solid var(--edge);border-radius:14px;position:relative;overflow:hidden}
 .bar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:14px 17px;border-bottom:1px solid var(--edge);background:#15201b}
 .bar h2{font:720 13px var(--mono);color:var(--green)}
 .bar span{color:var(--sub);font:600 10px var(--mono);text-align:end;letter-spacing:.04em}
-.summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));background:#171d1a;border-bottom:1px solid var(--edge)}
+.summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));background:#171d1a;border-top:1px solid var(--edge)}
 .measure{padding:13px 16px 11px;min-width:0;border-inline-end:1px solid var(--edge)}
 .measure:last-child{border:0}
-.measure strong{font:760 clamp(30px,4.1vw,59px)/1 var(--mono);letter-spacing:-.09em;color:var(--green);display:block;font-variant-numeric:tabular-nums}
+.measure strong{font:760 clamp(25px,2.7vw,37px)/1 var(--mono);letter-spacing:-.075em;color:var(--green);display:block;font-variant-numeric:tabular-nums}
 .measure:nth-child(2) strong{color:var(--gold)}
 .measure:nth-child(3) strong{color:var(--ink)}
 .measure span{display:block;color:var(--sub);font-size:11px;font-weight:650;margin-top:5px}
 .list{list-style:none;margin:0;padding:0 16px;min-height:301px}
-.row{display:grid;grid-template-columns:67px minmax(0,1fr);gap:11px;padding:9px 0;border-bottom:1px solid var(--edge);align-items:start;min-height:50px}
+.row{display:grid;grid-template-columns:67px minmax(0,1fr) max-content;gap:11px;padding:9px 0;border-bottom:1px solid var(--edge);align-items:start;min-height:50px}
 .row:last-child{border:0}
 .row code{font:650 13px/1.18 var(--mono);color:var(--ink);overflow-wrap:anywhere}
-.row small{display:block;font-size:11px;color:var(--sub);margin-top:1px}
+.row small{display:block;font-size:12px;color:var(--sub);margin-top:2px}
+.row .size{align-self:start;justify-self:end;color:var(--sub);font:620 11px/1.5 var(--mono);white-space:nowrap}
+.row[data-status="ready"].revealed{background:#25382d;box-shadow:inset 3px 0 var(--green);padding-inline:9px}
+.row[data-status="ready"].revealed code,.row[data-status="ready"].revealed small{color:var(--green)}
 .badge{border:1px solid #5b4c3a;color:var(--gold);border-radius:4px;padding:3px 5px;text-align:center;font:680 10px var(--mono)}
 .row[data-status="ready"] .badge{color:var(--green);border-color:#417b47;background:#253d29}
 .outcome[data-phase="idle"] .badge,.outcome[data-phase="scanning"] .row:not(.revealed) .badge{color:var(--sub);border-color:var(--edge);background:transparent}
@@ -54,7 +56,7 @@ html[lang="zh-CN"] h1{font-size:clamp(42px,4.85vw,75px);letter-spacing:-.07em;li
 @keyframes sweep{to{transform:translateY(320px);opacity:0}}
 footer{display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap;align-items:center;border-top:1px solid var(--edge);padding:15px 0 23px;color:var(--sub);font-size:12px}
 footer b{color:var(--ink)}
-@media (max-width:880px){main{width:calc(100% - 54px)}section.stage{gap:24px;grid-template-columns:minmax(260px,.85fr) minmax(0,1.15fr)}.row{grid-template-columns:58px minmax(0,1fr)}}
+@media (max-width:880px){main{width:calc(100% - 54px)}section.stage{gap:24px;grid-template-columns:minmax(260px,.85fr) minmax(0,1.15fr)}.row{grid-template-columns:58px minmax(0,1fr) max-content;gap:8px}}
 @media (max-width:650px){main{width:calc(100% - 32px)}header{min-height:57px}section.stage{grid-template-columns:1fr;padding:34px 0 23px;gap:24px}.bar,.measure{padding-left:12px;padding-right:12px}.list{padding-inline:12px}h1{margin:17px 0 12px}.actions{margin-top:16px}.description{font-size:15px}}
 @media (prefers-reduced-motion:reduce){.outcome[data-phase="scanning"]::after{animation:none;opacity:0}}
 </style>
@@ -70,16 +72,16 @@ footer b{color:var(--ink)}
       <p class="signal"><i aria-hidden="true"></i> <span data-copy="signal">Read-only first scan</span></p>
       <h1 id="headline">AI is done.<br><span>What’s left?</span></h1>
       <p class="description" data-copy="description">Open an old checkout. See the files worth a second look, with the evidence beside each one.</p>
-      <div class="actions"><button id="action" type="button" disabled><b data-action="caption">Run demo scan</b><span aria-hidden="true">↘</span></button></div>
+      <div class="actions"><button id="action" type="button" disabled><b>Run demo scan</b></button></div>
     </div>
     <div class="outcome" data-phase="idle" aria-labelledby="command">
       <div class="bar"><h2 id="command">$ leftoverkit scan</h2><span id="phase" role="status" aria-live="polite"></span></div>
+      <ul class="list" id="findings" aria-label="First scan findings"></ul>
       <div class="summary" id="summary">
         <div class="measure"><strong id="ready">—</strong><span data-copy="readyLabel">Eligible</span></div>
         <div class="measure"><strong id="review">—</strong><span data-copy="reviewLabel">Review only</span></div>
         <div class="measure"><strong id="moved">—</strong><span data-copy="movedLabel">Files moved</span></div>
       </div>
-      <ul class="list" id="findings" aria-label="First scan findings"></ul>
     </div>
   </section>
   <footer><b data-copy="proof">Verified CLI run · Synthetic checkout · Zero registrations</b><span data-copy="note">Replay only. Your files stay untouched.</span></footer>
@@ -162,7 +164,7 @@ const content = {
     start: "Run demo scan", again: "Replay scan", running: "Scanning…", unknown: "UNSCANNED",
     absent: "Demo evidence unavailable", ready: "READY", review: "REVIEW",
     hints: {
-      playwright: "Playwright marker inside an ignored directory",
+      playwright: "Git ignores generated/. The report still contains a Playwright marker.",
       worktree: "Merged worktree · needs explicit repository scope",
     },
     artifact: "Untracked artifact · ownership unknown",
@@ -180,7 +182,7 @@ const content = {
     start: "扫一扫演示仓库", again: "重播扫描", running: "扫描中…", unknown: "待扫描",
     absent: "演示数据未加载", ready: "符合条件", review: "仅供核查",
     hints: {
-      playwright: "被忽略的目录里找到了 Playwright 标记",
+      playwright: "Git 忽略了 generated/，扫描仍找到了报告里的 Playwright 标记。",
       worktree: "已合并的工作树 · 需要显式扩大清理范围",
     },
     artifact: "未跟踪的过程文件 · 归属未知",
@@ -205,11 +207,13 @@ const rows = results.map((item) => {
   const body = document.createElement("span");
   const path = document.createElement("code");
   const explanation = document.createElement("small");
+  const size = document.createElement("span");
+  size.className = "size";
   path.textContent = item.path;
   body.append(path, explanation);
-  row.append(badge, body);
+  row.append(badge, body, size);
   list.append(row);
-  return {item, row, badge, explanation};
+  return {item, row, badge, explanation, size};
 });
 
 function draw() {
@@ -234,12 +238,13 @@ function draw() {
   const status = byId("phase");
   status.textContent = !valid ? t.absent : ({idle:t.idle, scanning:t.scanning, done:t.complete})[mode];
   status.setAttribute("aria-label", mode === "done" ? t.announce(ready, review) : status.textContent);
-  rows.forEach(({item, row, badge, explanation}, index) => {
+  rows.forEach(({item, row, badge, explanation, size}, index) => {
     const show = index < revealed;
     row.classList.toggle("revealed", show);
     badge.textContent = show ? t[item.status] : t.unknown;
     const reason = t.hints[item.kind] ?? (item.evidence?.includes("script") ? t.script : t.artifact);
     explanation.textContent = show ? reason : "";
+    size.textContent = show ? `${item.bytes} B` : "";
   });
 }
 

@@ -2,18 +2,22 @@
 
 **AI is done. What’s left in your repo?**
 
-See the old reports, logs, patches and worktrees worth a second look. Start with a read-only scan.
+One read-only scan finds old test reports, logs, temporary scripts, patches and Git worktrees. See why each item surfaced and how much space it takes.
 
-[![A real first scan of a synthetic Git checkout. One item eligible, five for review and zero files moved.](docs/media/first-scan.gif)](docs/DEMO.md#watch-the-first-scan)
+**[Try the online demo](../../deployments/github-pages) · [Scan my repo](#scan-your-existing-checkout) · [中文](docs/README.zh-CN.md)**
 
-[Run it on your repo ↓](#scan-your-existing-checkout) · [Replay the scan](docs/DEMO.md#watch-the-first-scan) · [中文](docs/README.zh-CN.md)
+[![LeftoverKit finds a Playwright report under a Git-ignored parent directory and highlights the evidence](docs/media/first-scan.gif)](../../deployments/github-pages)
+
+This Playwright report sits under a Git-ignored folder. LeftoverKit spotted the report's marker on its first pass. This replay uses a synthetic checkout with zero registered files.
 
 ## Scan your existing checkout
 
-Requires macOS or Linux, Python 3.11+, Git and `uv`. From the checkout you want to inspect, use the HTTPS clone URL from this repository's **Code** menu:
+From the checkout you want to inspect, paste this into a shell on macOS or Linux with Python 3.11+, Git, `curl` and `uv`.
 
 ```sh
-uvx --from 'git+PASTE_THE_HTTPS_CLONE_URL_HERE' leftoverkit scan
+repo=$(curl -fsSL https://api.github.com/repositories/1471583448 |
+  python3 -c 'import json, sys; print(json.load(sys.stdin)["clone_url"])') &&
+  uvx --from "git+$repo" leftoverkit scan
 ```
 
 The scan shows what it found, the evidence and the measured size. It writes no LeftoverKit state. It also works without `lsof` and reports that open files could not be verified. Add `--json` for the full machine-readable output.
